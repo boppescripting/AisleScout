@@ -412,7 +412,7 @@ export async function searchWalmart(
     if (!items.length) return null
 
     const result = parseProduct(items[0] as Record<string, any>)
-    console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}"`)
+    console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}" aisle="${result.aisle}"`)
 
     return { ...result, source: 'walmart' }
   } catch (err: any) {
