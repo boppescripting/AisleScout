@@ -70,12 +70,19 @@ async function getBrowser(): Promise<any> {
   return _browser
 }
 
-// Serialise all Walmart requests — one at a time with jitter between them
-// so rapid item additions don't fire a burst of simultaneous browser sessions.
+// Serialise all Walmart requests — one at a time.
+// Jitter is only added when a request is queued behind another (burst detection).
+// Solo requests (normal item adds) fire immediately with no delay.
 let _queue: Promise<any> = Promise.resolve()
+let _pendingCount = 0
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  const next = _queue.then(() => jitter(1500, 4000)).then(fn)
+  const needsJitter = _pendingCount > 0
+  _pendingCount++
+  const next = _queue
+    .then(() => needsJitter ? jitter(1500, 4000) : Promise.resolve())
+    .then(fn)
+    .finally(() => { _pendingCount-- })
   _queue = next.catch(() => {})
   return next
 }
