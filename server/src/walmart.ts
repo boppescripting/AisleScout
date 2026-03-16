@@ -442,15 +442,18 @@ export async function searchWalmart(
       const productPage = await fetchPage(productUrl, cookieHeader, 15)
       if (productPage && productPage.status === 200 && !isBotPage(extractPageTitle(productPage.html))) {
         const productData = extractNextData(productPage.html)
-        const initialData = (productData as any)?.props?.pageProps?.initialData
+        const root = productData as any
+        console.log('[AisleDEBUG] __NEXT_DATA__ top keys:', Object.keys(root ?? {}).join(', '))
+        console.log('[AisleDEBUG] props keys:', Object.keys(root?.props ?? {}).join(', '))
+        console.log('[AisleDEBUG] pageProps keys:', Object.keys(root?.props?.pageProps ?? {}).join(', '))
+        const initialData = root?.props?.pageProps?.initialData
         const p = initialData?.data?.product
-        // Debug: log the product location-related fields to find the correct path
         console.log('[AisleDEBUG] initialData keys:', Object.keys(initialData ?? {}).join(', '))
         console.log('[AisleDEBUG] product keys:', Object.keys(p ?? {}).join(', '))
-        console.log('[AisleDEBUG] location:', JSON.stringify(p?.location))
-        console.log('[AisleDEBUG] store:', JSON.stringify(p?.store))
-        console.log('[AisleDEBUG] productLocation:', JSON.stringify(p?.productLocation))
-        console.log('[AisleDEBUG] aisle:', JSON.stringify(p?.aisle))
+        // Search for aisle anywhere in the data
+        const dataStr = JSON.stringify(root ?? {})
+        const aisleMatch = dataStr.match(/"aisle[^"]*":"([^"]+)"/i) ?? dataStr.match(/"displayValue":"([^"]+)"/i)
+        console.log('[AisleDEBUG] aisle regex match:', aisleMatch?.[0] ?? 'none')
         const aisleVal =
           safeStr(p?.location?.displayValue) ??
           safeStr(p?.store?.location?.displayValue) ??
