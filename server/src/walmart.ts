@@ -2,6 +2,7 @@ import { chromium } from 'playwright-extra'
 import StealthPlugin from 'puppeteer-extra-plugin-stealth'
 
 chromium.use(StealthPlugin())
+console.log('[playwright] Stealth plugin registered')
 
 export interface WalmartProduct {
   productName: string | null
@@ -31,12 +32,52 @@ export interface WalmartDebug {
 // bot detection (TLS fingerprint, JS challenges, navigator.webdriver, etc.).
 // Falls back to plain Node.js fetch on dev machines where Chromium isn't installed.
 
+// Rotate through realistic Chrome versions / screen sizes to avoid a fixed fingerprint
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+]
+const VIEWPORTS = [
+  { width: 1920, height: 1080 },
+  { width: 1440, height: 900 },
+  { width: 1366, height: 768 },
+  { width: 1280, height: 800 },
+  { width: 1536, height: 864 },
+]
+const TIMEZONES = ['America/Chicago', 'America/New_York', 'America/Los_Angeles', 'America/Denver']
+
+function pick<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)] }
+function jitter(minMs: number, maxMs: number): Promise<void> {
+  return new Promise(r => setTimeout(r, minMs + Math.random() * (maxMs - minMs)))
+}
+
 let _browser: any = null
+let _requestCount = 0
+const BROWSER_RECYCLE_AFTER = 8  // relaunch browser every N requests
 
 async function getBrowser(): Promise<any> {
-  if (_browser) return _browser
+  if (_browser && _requestCount < BROWSER_RECYCLE_AFTER) return _browser
+  if (_browser) {
+    console.log('[playwright] Recycling browser after', _requestCount, 'requests')
+    await _browser.close().catch(() => {})
+    _browser = null
+    _requestCount = 0
+  }
   _browser = await chromium.launch({ headless: true })
   return _browser
+}
+
+// Serialise all Walmart requests — one at a time with jitter between them
+// so rapid item additions don't fire a burst of simultaneous browser sessions.
+let _queue: Promise<any> = Promise.resolve()
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const next = _queue.then(() => jitter(1500, 4000)).then(fn)
+  _queue = next.catch(() => {})
+  return next
 }
 
 async function playwrightFetch(
@@ -44,41 +85,46 @@ async function playwrightFetch(
   cookieHeader: string | undefined,
   timeoutMs: number
 ): Promise<{ status: number; html: string } | null> {
-  let context: any = null
-  try {
-    const browser = await getBrowser()
-    context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      locale: 'en-US',
-      viewport: { width: 1280, height: 800 },
-    })
+  return enqueue(async () => {
+    let context: any = null
+    try {
+      const browser = await getBrowser()
+      _requestCount++
 
-    if (cookieHeader?.trim()) {
-      const domain = new URL(url).hostname
-      const cookies = cookieHeader.split(';')
-        .map(pair => {
-          const idx = pair.indexOf('=')
-          if (idx < 0) return null
-          return { name: pair.slice(0, idx).trim(), value: pair.slice(idx + 1).trim(), domain, path: '/' }
-        })
-        .filter((c): c is NonNullable<typeof c> => c !== null && c.name.length > 0)
-      if (cookies.length) await context.addCookies(cookies)
-    }
+      context = await browser.newContext({
+        userAgent: pick(USER_AGENTS),
+        locale: 'en-US',
+        timezoneId: pick(TIMEZONES),
+        viewport: pick(VIEWPORTS),
+      })
 
-    const page = await context.newPage()
-    const response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'domcontentloaded' })
-    const html = await page.content()
-    return { status: response?.status() ?? 200, html }
-  } catch (err: any) {
-    console.warn(`[playwright] ${err?.message?.slice(0, 120)}`)
-    // Browser may have crashed — clear so it relaunches next time
-    if (err?.message?.includes('Target closed') || err?.message?.includes('Browser closed')) {
-      _browser = null
+      if (cookieHeader?.trim()) {
+        const domain = new URL(url).hostname
+        const cookies = cookieHeader.split(';')
+          .map(pair => {
+            const idx = pair.indexOf('=')
+            if (idx < 0) return null
+            return { name: pair.slice(0, idx).trim(), value: pair.slice(idx + 1).trim(), domain, path: '/' }
+          })
+          .filter((c): c is NonNullable<typeof c> => c !== null && c.name.length > 0)
+        if (cookies.length) await context.addCookies(cookies)
+      }
+
+      const page = await context.newPage()
+      const response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'domcontentloaded' })
+      const html = await page.content()
+      return { status: response?.status() ?? 200, html }
+    } catch (err: any) {
+      console.warn(`[playwright] ${err?.message?.slice(0, 120)}`)
+      if (err?.message?.includes('Target closed') || err?.message?.includes('Browser closed')) {
+        _browser = null
+        _requestCount = 0
+      }
+      return null
+    } finally {
+      await context?.close().catch(() => {})
     }
-    return null
-  } finally {
-    await context?.close().catch(() => {})
-  }
+  })
 }
 
 // ─── Node.js fetch fallback ───────────────────────────────────────────────────
@@ -367,7 +413,8 @@ export async function debugSearch(
     const items = findItems(data)
     debug.itemCount = items.length
     if (items.length > 0) {
-      debug.result = { ...parseProduct(items[0] as Record<string, any>), source: 'walmart' }
+      debug.result = { ...parseProduct(items[0] as Record<string, any>), source: 'walmart' };
+      (debug as any).rawItem = items[0]
     }
   } catch (err: any) {
     debug.error = err?.message ?? String(err)
