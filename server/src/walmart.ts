@@ -268,9 +268,11 @@ function parseProduct(p: Record<string, any>): Omit<WalmartProduct, 'source'> {
 
   // aisle comes directly from productLocation in search results — no extra fetch needed
   const loc = p?.productLocation?.[0]
-  const aisle = safeStr(loc?.displayValue)
-    ? `Aisle ${loc.displayValue}`
-    : null
+  const aisleRaw =
+    safeStr(loc?.displayValue) ??
+    safeStr(p?.productLocationDisplayValue) ??
+    null
+  const aisle = aisleRaw ? `Aisle ${aisleRaw}` : null
 
   return {
     productName: safeStr(p?.name) ?? safeStr(p?.title),
