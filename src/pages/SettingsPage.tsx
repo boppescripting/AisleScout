@@ -1,7 +1,7 @@
-import { ChevronDown, ChevronUp, Cookie, ExternalLink, Save, Store } from 'lucide-react'
+import { ChevronDown, ChevronUp, Cookie, ExternalLink, Save, Store, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getSettings, saveSetting } from '../api'
+import { clearCache, getSettings, saveSetting } from '../api'
 import Header from '../components/Header'
 import { useStore } from '../store'
 
@@ -13,6 +13,19 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [showCookieHelp, setShowCookieHelp] = useState(false)
+  const [clearing, setClearing] = useState(false)
+  const [cleared, setCleared] = useState<number | null>(null)
+
+  const handleClearCache = async () => {
+    setClearing(true)
+    try {
+      const { cleared } = await clearCache()
+      setCleared(cleared)
+      setTimeout(() => setCleared(null), 3000)
+    } finally {
+      setClearing(false)
+    }
+  }
 
   useEffect(() => {
     getSettings().then(s => {
@@ -151,6 +164,31 @@ export default function SettingsPage() {
             <p>2. <strong>Open Food Facts</strong> — department only, no price (free fallback, always works)</p>
             <p>3. <strong>Manual entry</strong> — tap the price on any item to enter it yourself</p>
             <p className="text-xs text-gray-400 pt-1">Lookup results are cached for 24 hours.</p>
+          </div>
+        </section>
+
+        {/* Cache */}
+        <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 flex items-center gap-2">
+            <Trash2 size={16} className="text-primary" />
+            <h2 className="font-semibold text-gray-700 text-sm">Price Cache</h2>
+          </div>
+          <div className="p-4 space-y-3">
+            <p className="text-sm text-gray-500">
+              Walmart prices are cached for 24 hours. Clear the cache to force fresh lookups — useful after updating your cookie or fixing missing aisle info.
+            </p>
+            <button
+              onClick={handleClearCache}
+              disabled={clearing}
+              className="flex items-center gap-2 text-sm font-medium text-red-500 border border-red-200 bg-red-50 rounded-xl px-4 py-2.5 active:bg-red-100 disabled:opacity-60 transition-colors"
+            >
+              {clearing ? (
+                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Trash2 size={14} />
+              )}
+              {cleared !== null ? `Cleared ${cleared} cached item${cleared !== 1 ? 's' : ''}` : 'Clear Price Cache'}
+            </button>
           </div>
         </section>
 

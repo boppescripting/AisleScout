@@ -34,4 +34,16 @@ router.put('/:key', async (req, res) => {
   }
 })
 
+// DELETE /api/settings/cache
+router.delete('/cache', async (_req, res) => {
+  try {
+    const result = await db.execute('DELETE FROM walmart_cache')
+    console.log(`[Cache] Cleared ${result.rowsAffected} entries`)
+    res.json({ cleared: result.rowsAffected })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to clear cache' })
+  }
+})
+
 export default router

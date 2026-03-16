@@ -39,3 +39,6 @@ export const getSettings = () =>
 
 export const saveSetting = (key: string, value: string) =>
   http.put(`/settings/${key}`, { value }).then(r => r.data)
+
+export const clearCache = () =>
+  http.delete<{ cleared: number }>('/settings/cache').then(r => r.data)

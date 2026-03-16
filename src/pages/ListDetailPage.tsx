@@ -77,6 +77,7 @@ export default function ListDetailPage() {
       const result = await searchWalmart(item.name)
       if (result.price != null || result.department != null) {
         const updated = await updateItem(item.id, {
+          name: result.productName ?? undefined,
           price: result.price ?? undefined,
           department: result.department ?? undefined,
           aisle: result.aisle ?? undefined,
