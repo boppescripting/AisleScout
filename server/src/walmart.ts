@@ -87,11 +87,15 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   return next
 }
 
+// Fetches one or two URLs in a single browser context (same session).
+// The optional secondUrl is navigated to after the first, reusing the same
+// page/cookies — used to fetch the store-specific product page for aisle data.
 async function playwrightFetch(
   url: string,
   cookieHeader: string | undefined,
-  timeoutMs: number
-): Promise<{ status: number; html: string } | null> {
+  timeoutMs: number,
+  secondUrl?: string
+): Promise<{ status: number; html: string; secondHtml?: string } | null> {
   return enqueue(async () => {
     let context: any = null
     try {
@@ -120,7 +124,20 @@ async function playwrightFetch(
       const page = await context.newPage()
       const response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'domcontentloaded' })
       const html = await page.content()
-      return { status: response?.status() ?? 200, html }
+
+      // Navigate to the second URL in the same session if provided
+      let secondHtml: string | undefined
+      if (secondUrl) {
+        try {
+          await jitter(800, 1800)
+          await page.goto(secondUrl, { timeout: timeoutMs, waitUntil: 'domcontentloaded' })
+          secondHtml = await page.content()
+        } catch {
+          // aisle fetch failed — not fatal
+        }
+      }
+
+      return { status: response?.status() ?? 200, html, secondHtml }
     } catch (err: any) {
       console.warn(`[playwright] ${err?.message?.slice(0, 120)}`)
       if (err?.message?.includes('Target closed') || err?.message?.includes('Browser closed')) {
@@ -167,9 +184,10 @@ async function nodeFetch(
 async function fetchPage(
   url: string,
   cookieHeader: string | undefined,
-  timeoutSec = 15
-): Promise<{ status: number; html: string; method: string } | null> {
-  const pw = await playwrightFetch(url, cookieHeader, timeoutSec * 1000)
+  timeoutSec = 15,
+  secondUrl?: string
+): Promise<{ status: number; html: string; method: string; secondHtml?: string } | null> {
+  const pw = await playwrightFetch(url, cookieHeader, timeoutSec * 1000, secondUrl)
   if (pw) return { ...pw, method: 'playwright' }
 
   // Fallback for dev environments without Chromium installed
@@ -266,13 +284,14 @@ function parseProduct(p: Record<string, any>): Omit<WalmartProduct, 'source'> {
     safeStr(p?.department) ??
     null
 
-  // aisle comes directly from productLocation in search results — no extra fetch needed
+  // productLocation comes from Walmart's planogram database which may reference a
+  // different store than the one configured — treat as approximate.
   const loc = p?.productLocation?.[0]
   const aisleRaw =
     safeStr(loc?.displayValue) ??
     safeStr(p?.productLocationDisplayValue) ??
     null
-  const aisle = aisleRaw ? `Aisle ${aisleRaw}` : null
+  const aisle = aisleRaw ? `~${aisleRaw}` : null
 
   return {
     productName: safeStr(p?.name) ?? safeStr(p?.title),
@@ -392,7 +411,9 @@ export async function searchWalmart(
   console.log(`[Walmart] Searching: ${url}`)
 
   try {
-    const fetched = await fetchPage(url, cookieHeader)
+    // We don't know the itemId yet, so fetch search page first.
+    // Once we have the itemId, the store product page is fetched in the same session.
+    const fetched = await fetchPage(url, cookieHeader, 25)
     if (!fetched) return null
 
     const title = extractPageTitle(fetched.html)
@@ -414,6 +435,24 @@ export async function searchWalmart(
     if (!items.length) return null
 
     const result = parseProduct(items[0] as Record<string, any>)
+
+    // Fetch store-specific product page in a second session to get correct aisle for store
+    if (storeId && result.walmartItemId) {
+      const productUrl = `https://www.walmart.com/store/${storeId}/product/${result.walmartItemId}`
+      const productPage = await fetchPage(productUrl, cookieHeader, 15)
+      if (productPage && productPage.status === 200 && !isBotPage(extractPageTitle(productPage.html))) {
+        const productData = extractNextData(productPage.html)
+        const p = (productData as any)?.props?.pageProps?.initialData?.data?.product
+        const aisleVal =
+          safeStr(p?.location?.displayValue) ??
+          safeStr(p?.store?.location?.displayValue) ??
+          safeStr(p?.location?.aisle) ??
+          null
+        if (aisleVal) result.aisle = `Aisle ${aisleVal}`
+        console.log(`[Walmart] Store ${storeId} aisle="${result.aisle}"`)
+      }
+    }
+
     console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}" aisle="${result.aisle}"`)
 
     return { ...result, source: 'walmart' }

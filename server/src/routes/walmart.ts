@@ -78,7 +78,7 @@ router.get('/search', async (req, res) => {
       : null
 
     const [walmart, off] = await Promise.all([
-      cap(searchWalmart(query, storeId, cookieHeader), 20_000),
+      cap(searchWalmart(query, storeId, cookieHeader), 35_000),
       cap(searchOpenFoodFacts(query), 5_000),
     ])
 

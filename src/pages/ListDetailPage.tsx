@@ -140,9 +140,9 @@ export default function ListDetailPage() {
     await deleteItem(item.id)
   }
 
-  const handleManualEdit = async (item: Item, price: number | null, department: string | null) => {
-    updateItemInStore(item.id, { price, department })
-    await updateItem(item.id, { price: price ?? undefined, department: department ?? undefined })
+  const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null) => {
+    updateItemInStore(item.id, { price, department, aisle })
+    await updateItem(item.id, { price: price ?? undefined, department: department ?? undefined, aisle: aisle ?? undefined })
   }
 
   const totalCount = items.length
@@ -212,7 +212,7 @@ export default function ListDetailPage() {
                       onQtyChange={qty => handleQtyChange(item, qty)}
                       onDelete={() => handleDelete(item)}
                       onLookup={() => runWalmartLookup(item)}
-                      onManualEdit={(price, dept) => handleManualEdit(item, price, dept)}
+                      onManualEdit={(price, dept, aisle) => handleManualEdit(item, price, dept, aisle)}
                     />
                   ))}
                 </div>
@@ -240,7 +240,7 @@ export default function ListDetailPage() {
                         onQtyChange={qty => handleQtyChange(item, qty)}
                         onDelete={() => handleDelete(item)}
                         onLookup={() => runWalmartLookup(item)}
-                        onManualEdit={(price, dept) => handleManualEdit(item, price, dept)}
+                        onManualEdit={(price, dept, aisle) => handleManualEdit(item, price, dept, aisle)}
                       />
                     ))}
                   </div>

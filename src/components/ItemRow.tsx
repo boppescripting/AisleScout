@@ -9,7 +9,7 @@ interface ItemRowProps {
   onQtyChange: (qty: number) => void
   onDelete: () => void
   onLookup: () => void
-  onManualEdit: (price: number | null, department: string | null) => void
+  onManualEdit: (price: number | null, department: string | null, aisle: string | null) => void
 }
 
 export default function ItemRow({
@@ -25,11 +25,13 @@ export default function ItemRow({
   const [editing, setEditing] = useState(false)
   const [priceInput, setPriceInput] = useState('')
   const [deptInput, setDeptInput] = useState('')
+  const [aisleInput, setAisleInput] = useState('')
   const priceRef = useRef<HTMLInputElement>(null)
 
   const openEdit = () => {
     setPriceInput(item.price != null ? item.price.toFixed(2) : '')
     setDeptInput(item.department ?? '')
+    setAisleInput(item.aisle ?? '')
     setEditing(true)
     setTimeout(() => priceRef.current?.focus(), 50)
   }
@@ -37,9 +39,11 @@ export default function ItemRow({
   const saveEdit = () => {
     const price = priceInput.trim() === '' ? null : parseFloat(priceInput)
     const department = deptInput.trim() || null
+    const aisle = aisleInput.trim() || null
     onManualEdit(
       price != null && isFinite(price) && price >= 0 ? price : null,
-      department
+      department,
+      aisle
     )
     setEditing(false)
   }
@@ -129,7 +133,11 @@ export default function ItemRow({
               >
                 <MapPin size={10} />
                 {item.department}
-                {item.aisle && <span className="text-primary-400">· {item.aisle}</span>}
+                {item.aisle && (
+                  <span className={item.aisle.startsWith('~') ? 'text-primary-300 italic' : 'text-primary-400'}>
+                    · {item.aisle}
+                  </span>
+                )}
               </button>
             ) : !isLookingUp && (
               <button
@@ -202,7 +210,7 @@ export default function ItemRow({
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
-            <div className="flex-[2]">
+            <div className="flex-1">
               <label className="text-xs text-gray-400 mb-1 block">Department</label>
               <input
                 type="text"
@@ -210,6 +218,17 @@ export default function ItemRow({
                 onChange={e => setDeptInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveEdit()}
                 placeholder="e.g. Coffee"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-gray-400 mb-1 block">Aisle</label>
+              <input
+                type="text"
+                value={aisleInput}
+                onChange={e => setAisleInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                placeholder="e.g. A12"
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
