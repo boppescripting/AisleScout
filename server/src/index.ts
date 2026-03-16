@@ -6,6 +6,7 @@ import listsRouter from './routes/lists'
 import { listItemsRouter, itemsRouter } from './routes/items'
 import walmartRouter from './routes/walmart'
 import settingsRouter from './routes/settings'
+import { loginHandler, requireAuth } from './auth'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -16,6 +17,10 @@ app.use(cors({
   origin: isProd ? false : 'http://localhost:5173',
   credentials: true,
 }))
+
+// Auth — login is public, everything else requires a valid token
+app.post('/api/auth/login', loginHandler)
+app.use('/api', requireAuth)
 
 app.use('/api/lists', listsRouter)
 app.use('/api/lists/:listId/items', listItemsRouter)

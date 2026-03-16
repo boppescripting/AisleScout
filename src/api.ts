@@ -3,6 +3,26 @@ import type { ShoppingList, Item, WalmartResult, Settings } from './types'
 
 const http = axios.create({ baseURL: '/api' })
 
+http.interceptors.request.use(config => {
+  const token = localStorage.getItem('auth_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+http.interceptors.response.use(
+  r => r,
+  err => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem('auth_token')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
+  }
+)
+
+export const login = (password: string) =>
+  axios.post<{ token: string }>('/api/auth/login', { password }).then(r => r.data)
+
 // Lists
 export const getLists = () =>
   http.get<ShoppingList[]>('/lists').then(r => r.data)

@@ -7,6 +7,7 @@ services:
     environment:
       NODE_ENV: production
       LIBSQL_URL: file:/app/data/aisles.db
+      APP_PASSWORD: ${APP_PASSWORD:-}
     volumes:
       - aisles_data:/app/data
 
