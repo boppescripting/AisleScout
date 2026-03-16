@@ -212,6 +212,38 @@ function safeStr(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null
 }
 
+// Maps Walmart's catalogProductType values to our department names
+const CATALOG_TYPE_DEPT: Record<string, string> = {
+  'Eggs': 'Dairy & Eggs', 'Milk': 'Dairy & Eggs', 'Cheese': 'Dairy & Eggs',
+  'Butter': 'Dairy & Eggs', 'Yogurt': 'Dairy & Eggs', 'Cream': 'Dairy & Eggs',
+  'Coffee': 'Coffee', 'Tea': 'Tea',
+  'Bread': 'Bakery & Bread', 'Bagels': 'Bakery & Bread', 'Tortillas': 'Bakery & Bread',
+  'Chicken': 'Meat', 'Beef': 'Meat', 'Pork': 'Meat', 'Turkey': 'Meat',
+  'Sausage': 'Meat', 'Bacon': 'Meat', 'Deli Meat': 'Meat', 'Hot Dogs': 'Meat',
+  'Fish': 'Seafood', 'Seafood': 'Seafood', 'Shrimp': 'Seafood',
+  'Ice Cream': 'Frozen Foods', 'Frozen Meals': 'Frozen Foods', 'Frozen Pizza': 'Frozen Foods',
+  'Chips': 'Snacks & Candy', 'Crackers': 'Snacks & Candy', 'Popcorn': 'Snacks & Candy',
+  'Candy': 'Snacks & Candy', 'Chocolate': 'Snacks & Candy', 'Gum': 'Snacks & Candy',
+  'Cereal': 'Breakfast & Cereal', 'Oatmeal': 'Breakfast & Cereal', 'Granola': 'Breakfast & Cereal',
+  'Pasta': 'Pasta & Grains', 'Rice': 'Pasta & Grains', 'Noodles': 'Pasta & Grains',
+  'Soup': 'Canned Goods', 'Beans': 'Canned Goods', 'Canned Vegetables': 'Canned Goods',
+  'Condiments': 'Condiments & Sauces', 'Sauces': 'Condiments & Sauces', 'Salad Dressing': 'Condiments & Sauces',
+  'Cooking Oil': 'Cooking Oils', 'Olive Oil': 'Cooking Oils',
+  'Baking': 'Baking', 'Flour': 'Baking', 'Sugar': 'Baking',
+  'Spices': 'Spices & Seasonings', 'Seasonings': 'Spices & Seasonings',
+  'Fresh Fruit': 'Produce', 'Fresh Vegetables': 'Produce', 'Salad': 'Produce',
+  'Shampoo': 'Health & Beauty', 'Body Wash': 'Health & Beauty', 'Deodorant': 'Health & Beauty',
+  'Vitamins': 'Vitamins & Supplements', 'Supplements': 'Vitamins & Supplements',
+  'Medicine': 'Pharmacy', 'Pain Relief': 'Pharmacy', 'Cold & Flu': 'Pharmacy',
+  'Laundry Detergent': 'Laundry', 'Fabric Softener': 'Laundry',
+  'Cleaning': 'Household Cleaners', 'Disinfectants': 'Household Cleaners',
+  'Paper Towels': 'Paper & Plastic', 'Toilet Paper': 'Paper & Plastic',
+  'Diapers': 'Baby', 'Baby Food': 'Baby', 'Baby Formula': 'Baby',
+  'Dog Food': 'Pet Supplies', 'Cat Food': 'Pet Supplies', 'Pet Treats': 'Pet Supplies',
+  'Soda': 'Beverages', 'Juice': 'Beverages', 'Water': 'Beverages', 'Sports Drinks': 'Beverages',
+  'Beer': 'Wine, Beer & Spirits', 'Wine': 'Wine, Beer & Spirits', 'Spirits': 'Wine, Beer & Spirits',
+}
+
 function parseProduct(p: Record<string, any>): Omit<WalmartProduct, 'source'> {
   const price =
     safeNum(p?.priceInfo?.currentPrice?.price) ??
@@ -219,20 +251,25 @@ function parseProduct(p: Record<string, any>): Omit<WalmartProduct, 'source'> {
     safeNum(p?.priceInfo?.price) ??
     null
 
-  // TEMP: log category-related fields to find correct department key
-  console.log('[parseProduct] keys:', Object.keys(p).join(', '))
-  console.log('[parseProduct] category:', JSON.stringify(p?.category))
-  console.log('[parseProduct] categories:', JSON.stringify(p?.categories))
-  console.log('[parseProduct] department:', JSON.stringify(p?.department))
-  console.log('[parseProduct] type:', JSON.stringify(p?.type))
-  console.log('[parseProduct] classType:', JSON.stringify(p?.classType))
+  // category.path is often null in search results; use catalogProductType instead
+  const categoryPath: any[] = Array.isArray(p?.category?.path) ? p.category.path : []
+  const department =
+    safeStr(categoryPath[0]?.name) ??
+    (p?.catalogProductType ? CATALOG_TYPE_DEPT[p.catalogProductType] ?? null : null) ??
+    safeStr(p?.department) ??
+    null
 
-  const categoryPath: any[] = p?.category?.path ?? p?.categories ?? []
+  // aisle comes directly from productLocation in search results — no extra fetch needed
+  const loc = p?.productLocation?.[0]
+  const aisle = safeStr(loc?.displayValue)
+    ? `Aisle ${loc.displayValue}`
+    : null
+
   return {
     productName: safeStr(p?.name) ?? safeStr(p?.title),
     price,
-    department: safeStr(categoryPath[0]?.name) ?? safeStr(p?.department) ?? null,
-    aisle: null,
+    department,
+    aisle,
     walmartItemId: safeStr(String(p?.usItemId ?? p?.itemId ?? '')),
   }
 }
@@ -370,10 +407,6 @@ export async function searchWalmart(
     const result = parseProduct(items[0] as Record<string, any>)
     console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}"`)
 
-    if (storeId && result.walmartItemId) {
-      result.aisle = await fetchAisle(storeId, result.walmartItemId, cookieHeader)
-    }
-
     return { ...result, source: 'walmart' }
   } catch (err: any) {
     console.error(`[Walmart] Error: ${err?.message}`)
@@ -431,28 +464,3 @@ export async function debugSearch(
   return debug
 }
 
-async function fetchAisle(
-  storeId: string,
-  itemId: string,
-  cookieHeader: string | undefined
-): Promise<string | null> {
-  try {
-    const fetched = await fetchPage(
-      `https://www.walmart.com/store/${storeId}/product/${itemId}`,
-      cookieHeader, 8
-    )
-    if (!fetched || fetched.status !== 200 || isBotPage(extractPageTitle(fetched.html))) return null
-
-    const data = extractNextData(fetched.html)
-    if (!data) return null
-
-    const product = (data as any)?.props?.pageProps?.initialData?.data?.product
-    const aisle = product?.location?.aisle ?? product?.store?.aisle ?? null
-    if (aisle) return `Aisle ${aisle}`
-
-    const m = fetched.html.match(/[Aa]isle\s+([A-Za-z0-9]{1,4})\b/)
-    return m ? `Aisle ${m[1]}` : null
-  } catch {
-    return null
-  }
-}

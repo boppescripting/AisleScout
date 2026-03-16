@@ -23,25 +23,21 @@ function cap<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
   ])
 }
 
-// Merge results from multiple sources. Walmart wins (has price), then OFF, then keyword.
+// Merge results from multiple sources. Walmart wins for price/aisle/itemId,
+// but department is filled from OFF or keyword if Walmart's is null.
 function mergeResults(
   walmart: WalmartProduct | null,
   off: WalmartProduct | null,
   keyword: WalmartProduct | null
 ): WalmartProduct | null {
-  // Use Walmart if it returned anything useful
-  if (walmart?.price != null || (walmart?.department && !off && !keyword)) return walmart
+  if (!walmart && !off && !keyword) return null
 
-  // OFF or keyword for department when Walmart fails
-  const deptSource = off?.department ? off : keyword?.department ? keyword : null
+  const deptSource = walmart?.department ? walmart : off?.department ? off : keyword?.department ? keyword : null
 
-  if (!walmart && !deptSource) return null
-
-  // Combine: take price from Walmart (if any), department from best available
   return {
     productName: walmart?.productName ?? off?.productName ?? null,
     price: walmart?.price ?? null,
-    department: walmart?.department ?? deptSource?.department ?? null,
+    department: deptSource?.department ?? null,
     aisle: walmart?.aisle ?? null,
     walmartItemId: walmart?.walmartItemId ?? null,
     source: walmart?.price != null ? 'walmart' : off?.department ? 'openfoodfacts' : 'keyword',
