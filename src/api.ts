@@ -42,3 +42,6 @@ export const saveSetting = (key: string, value: string) =>
 
 export const clearCache = () =>
   http.delete<{ cleared: number }>('/settings/cache').then(r => r.data)
+
+export const saveWalmartAisle = (walmartItemId: string, aisle: string | null) =>
+  http.put('/walmart/aisle', { walmartItemId, aisle }).then(r => r.data)

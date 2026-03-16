@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronUp, PackageOpen } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { addItem, deleteItem, getItems, searchWalmart, updateItem } from '../api'
+import { addItem, deleteItem, getItems, saveWalmartAisle, searchWalmart, updateItem } from '../api'
 import AddItemBar from '../components/AddItemBar'
 import Header from '../components/Header'
 import ItemRow from '../components/ItemRow'
@@ -144,6 +144,10 @@ export default function ListDetailPage() {
   const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null) => {
     updateItemInStore(item.id, { price, department, aisle })
     await updateItem(item.id, { price: price ?? undefined, department: department ?? undefined, aisle: aisle ?? undefined })
+    // Persist aisle permanently by walmart item id so it survives list deletion
+    if (item.walmart_item_id) {
+      await saveWalmartAisle(item.walmart_item_id, aisle).catch(() => {})
+    }
   }
 
   const totalCount = items.length

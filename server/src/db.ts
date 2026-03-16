@@ -51,6 +51,12 @@ export async function initDb() {
       value TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS user_aisles (
+      walmart_item_id  TEXT PRIMARY KEY,
+      aisle            TEXT NOT NULL,
+      updated_at       TEXT DEFAULT (datetime('now'))
+    );
+
     INSERT OR IGNORE INTO settings (key, value) VALUES ('store_id', '');
     INSERT OR IGNORE INTO settings (key, value) VALUES ('walmart_cookie', '');
   `)

@@ -23,8 +23,6 @@ function cap<T>(promise: Promise<T | null>, ms: number): Promise<T | null> {
   ])
 }
 
-// Merge results from multiple sources. Walmart wins for price/aisle/itemId,
-// but department is filled from OFF or keyword if Walmart's is null.
 function mergeResults(
   walmart: WalmartProduct | null,
   off: WalmartProduct | null,
@@ -44,6 +42,16 @@ function mergeResults(
   }
 }
 
+// Look up the saved user aisle for a walmart item id
+async function getSavedAisle(walmartItemId: string | null): Promise<string | null> {
+  if (!walmartItemId) return null
+  const row = await db.execute({
+    sql: 'SELECT aisle FROM user_aisles WHERE walmart_item_id = ?',
+    args: [walmartItemId]
+  })
+  return row.rows.length > 0 ? (row.rows[0].aisle as string) : null
+}
+
 // GET /api/walmart/search?q=maple+pecan+k-cup
 router.get('/search', async (req, res) => {
   const query = (req.query.q as string)?.trim()
@@ -61,17 +69,14 @@ router.get('/search', async (req, res) => {
     })
     if (cached.rows.length > 0) {
       const r = cached.rows[0]
+      const savedAisle = await getSavedAisle(r.walmart_item_id as string)
       return res.json({
         productName: r.product_name, price: r.price, department: r.department,
-        aisle: r.aisle, walmartItemId: r.walmart_item_id,
+        aisle: savedAisle ?? r.aisle, walmartItemId: r.walmart_item_id,
         source: r.source ?? null, fromCache: true,
       })
     }
 
-    // Run all three sources in parallel:
-    //   - Walmart:  capped at 6s (fast-fails on bot challenge ~2s)
-    //   - OFF:      capped at 5s
-    //   - Keyword:  instant, no network
     const keywordDept = guessDepartmentByKeyword(query)
     const keywordResult: WalmartProduct | null = keywordDept
       ? { productName: null, price: null, department: keywordDept, aisle: null, walmartItemId: null, source: 'keyword' }
@@ -87,6 +92,10 @@ router.get('/search', async (req, res) => {
     const result = mergeResults(walmart, off, keywordResult)
 
     if (result) {
+      // Apply any saved user aisle
+      const savedAisle = await getSavedAisle(result.walmartItemId)
+      if (savedAisle) result.aisle = savedAisle
+
       await db.execute({
         sql: `INSERT OR REPLACE INTO walmart_cache
                 (cache_key, product_name, price, department, aisle, walmart_item_id, source, cached_at)
@@ -100,6 +109,30 @@ router.get('/search', async (req, res) => {
   } catch (err) {
     console.error(err)
     res.status(500).json({ error: 'Lookup failed' })
+  }
+})
+
+// PUT /api/walmart/aisle — persist a user-set aisle by walmart item id
+router.put('/aisle', async (req, res) => {
+  const { walmartItemId, aisle } = req.body
+  if (!walmartItemId) return res.status(400).json({ error: 'walmartItemId required' })
+  try {
+    if (aisle) {
+      await db.execute({
+        sql: `INSERT OR REPLACE INTO user_aisles (walmart_item_id, aisle, updated_at)
+              VALUES (?, ?, datetime('now'))`,
+        args: [walmartItemId, aisle]
+      })
+    } else {
+      await db.execute({
+        sql: 'DELETE FROM user_aisles WHERE walmart_item_id = ?',
+        args: [walmartItemId]
+      })
+    }
+    res.json({ ok: true })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ error: 'Failed to save aisle' })
   }
 })
 
