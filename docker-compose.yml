@@ -1,7 +1,6 @@
 services:
   app:
     image: ghcr.io/boppescripting/aisles:latest
-    build: .
     restart: unless-stopped
     ports:
       - "${PORT:-3001}:3001"
