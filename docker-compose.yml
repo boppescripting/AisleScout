@@ -1,0 +1,15 @@
+services:
+  app:
+    image: ghcr.io/boppescripting/aisles:latest
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      LIBSQL_URL: file:/app/data/aisles.db
+    volumes:
+      - aisles_data:/app/data
+
+volumes:
+  aisles_data:
