@@ -7,93 +7,70 @@ exports.guessDepartmentByKeyword = guessDepartmentByKeyword;
 exports.searchOpenFoodFacts = searchOpenFoodFacts;
 exports.searchWalmart = searchWalmart;
 exports.debugSearch = debugSearch;
-const child_process_1 = require("child_process");
-const util_1 = require("util");
-const fs_1 = __importDefault(require("fs"));
-const os_1 = __importDefault(require("os"));
-const path_1 = __importDefault(require("path"));
-const execAsync = (0, util_1.promisify)(child_process_1.execFile);
-// ─── curl-impersonate ─────────────────────────────────────────────────────────
-// Uses Chrome's exact TLS fingerprint (JA3 hash, cipher suites, extensions,
-// HTTP/2 settings frames) — the only reliable way to bypass Akamai bot detection
-// from a server. Falls back to Node.js fetch on dev machines where it isn't installed.
-// Binary names from curl-impersonate Chrome releases, newest first.
-// On Linux: installed by Dockerfile. On Mac: brew install curl-impersonate
-const CURL_BINS = ['curl_chrome124', 'curl_chrome116', 'curl_chrome110', 'curl_chrome107'];
-let _curlBin = undefined; // undefined = not yet probed
-async function getCurlBin() {
-    if (_curlBin !== undefined)
-        return _curlBin;
-    for (const bin of CURL_BINS) {
-        try {
-            await execAsync(bin, ['--version'], { timeout: 3000 });
-            console.log(`[curl-impersonate] Using ${bin}`);
-            return (_curlBin = bin);
-        }
-        catch { /* not found, try next */ }
-    }
-    console.warn('[curl-impersonate] Not installed — falling back to Node.js fetch (Walmart will likely be blocked). Install with: brew install curl-impersonate  OR  see Dockerfile for Linux.');
-    return (_curlBin = null);
+const playwright_extra_1 = require("playwright-extra");
+const puppeteer_extra_plugin_stealth_1 = __importDefault(require("puppeteer-extra-plugin-stealth"));
+playwright_extra_1.chromium.use((0, puppeteer_extra_plugin_stealth_1.default)());
+// ─── Playwright (stealth Chromium) ───────────────────────────────────────────
+// Runs a real Chromium instance with stealth patches applied, bypassing Akamai's
+// bot detection (TLS fingerprint, JS challenges, navigator.webdriver, etc.).
+// Falls back to plain Node.js fetch on dev machines where Chromium isn't installed.
+let _browser = null;
+async function getBrowser() {
+    if (_browser)
+        return _browser;
+    _browser = await playwright_extra_1.chromium.launch({ headless: true });
+    return _browser;
 }
-async function curlFetch(url, cookieHeader, timeoutSec) {
-    const bin = await getCurlBin();
-    if (!bin)
-        return null;
-    const tmpPath = path_1.default.join(os_1.default.tmpdir(), `wm-${Date.now()}-${Math.random().toString(36).slice(2)}.html`);
-    // curl-impersonate handles TLS fingerprint, HTTP/2, and Chrome's default headers
-    // automatically. We only need to inject the cookie header on top.
-    const args = [
-        '-s', // silent
-        '-L', // follow redirects
-        '--compressed', // accept gzip/br
-        '--max-time', String(timeoutSec),
-        '-o', tmpPath, // write body to temp file
-        '-w', '%{http_code}', // print status code to stdout
-    ];
-    if (cookieHeader?.trim()) {
-        args.push('-H', `Cookie: ${cookieHeader.trim()}`);
-    }
-    args.push(url);
+async function playwrightFetch(url, cookieHeader, timeoutMs) {
+    let context = null;
     try {
-        const { stdout } = await execAsync(bin, args, {
-            maxBuffer: 20 * 1024 * 1024,
-            timeout: (timeoutSec + 5) * 1000,
+        const browser = await getBrowser();
+        context = await browser.newContext({
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            locale: 'en-US',
+            viewport: { width: 1280, height: 800 },
         });
-        const status = parseInt(stdout.trim());
-        if (!status || isNaN(status))
-            return null;
-        const html = await fs_1.default.promises.readFile(tmpPath, 'utf8');
-        return { status, html };
+        if (cookieHeader?.trim()) {
+            const domain = new URL(url).hostname;
+            const cookies = cookieHeader.split(';')
+                .map(pair => {
+                const idx = pair.indexOf('=');
+                if (idx < 0)
+                    return null;
+                return { name: pair.slice(0, idx).trim(), value: pair.slice(idx + 1).trim(), domain, path: '/' };
+            })
+                .filter((c) => c !== null && c.name.length > 0);
+            if (cookies.length)
+                await context.addCookies(cookies);
+        }
+        const page = await context.newPage();
+        const response = await page.goto(url, { timeout: timeoutMs, waitUntil: 'domcontentloaded' });
+        const html = await page.content();
+        return { status: response?.status() ?? 200, html };
     }
     catch (err) {
-        console.warn(`[curl-impersonate] ${err?.message?.slice(0, 100)}`);
+        console.warn(`[playwright] ${err?.message?.slice(0, 120)}`);
+        // Browser may have crashed — clear so it relaunches next time
+        if (err?.message?.includes('Target closed') || err?.message?.includes('Browser closed')) {
+            _browser = null;
+        }
         return null;
     }
     finally {
-        await fs_1.default.promises.unlink(tmpPath).catch(() => { });
+        await context?.close().catch(() => { });
     }
 }
 // ─── Node.js fetch fallback ───────────────────────────────────────────────────
-// Used on dev machines without curl-impersonate. Will usually be blocked by
-// Walmart's Akamai protection due to TLS fingerprint mismatch.
-const FETCH_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Sec-Ch-Ua': '"Chromium";v="116", "Google Chrome";v="116", "Not-A.Brand";v="99"',
-    'Sec-Ch-Ua-Mobile': '?0',
-    'Sec-Ch-Ua-Platform': '"Windows"',
-    'Sec-Fetch-Dest': 'document',
-    'Sec-Fetch-Mode': 'navigate',
-    'Sec-Fetch-Site': 'none',
-    'Sec-Fetch-User': '?1',
-    'Upgrade-Insecure-Requests': '1',
-};
+// Used when Playwright/Chromium is not installed (local dev). Akamai will likely
+// block this, but OFF + keyword fallbacks still provide department info.
 async function nodeFetch(url, cookieHeader, timeoutMs) {
-    const headers = cookieHeader?.trim()
-        ? { ...FETCH_HEADERS, Cookie: cookieHeader.trim() }
-        : FETCH_HEADERS;
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+    };
+    if (cookieHeader?.trim())
+        headers['Cookie'] = cookieHeader.trim();
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), timeoutMs);
     try {
@@ -103,18 +80,15 @@ async function nodeFetch(url, cookieHeader, timeoutMs) {
     }
     catch (err) {
         clearTimeout(timer);
-        if (err?.name === 'AbortError')
-            throw new Error('timeout');
-        throw err;
+        return null;
     }
 }
-// ─── Unified fetch (curl-impersonate > Node.js fetch) ────────────────────────
+// ─── Unified fetch (Playwright > Node.js fetch) ───────────────────────────────
 async function fetchPage(url, cookieHeader, timeoutSec = 15) {
-    // Try curl-impersonate first (real Chrome TLS fingerprint)
-    const curl = await curlFetch(url, cookieHeader, timeoutSec);
-    if (curl)
-        return { ...curl, method: 'curl-impersonate' };
-    // Fall back to Node.js fetch (will likely fail against Akamai)
+    const pw = await playwrightFetch(url, cookieHeader, timeoutSec * 1000);
+    if (pw)
+        return { ...pw, method: 'playwright' };
+    // Fallback for dev environments without Chromium installed
     const node = await nodeFetch(url, cookieHeader, timeoutSec * 1000);
     if (node)
         return { ...node, method: 'node-fetch' };
@@ -283,7 +257,7 @@ async function searchWalmart(query, storeId, cookieHeader) {
         const title = extractPageTitle(fetched.html);
         console.log(`[Walmart] HTTP ${fetched.status} via ${fetched.method}, ${fetched.html.length} chars, title="${title}"`);
         if (fetched.status !== 200 || isBotPage(title)) {
-            console.warn(`[Walmart] Bot challenge page — ${fetched.method === 'curl-impersonate' ? 'unexpected with curl-impersonate, check cookie' : 'install curl-impersonate to bypass TLS fingerprint check'}`);
+            console.warn(`[Walmart] Bot challenge page via ${fetched.method} — try refreshing your Walmart cookie in Settings`);
             return null;
         }
         const data = extractNextData(fetched.html);
@@ -320,7 +294,7 @@ async function debugSearch(query, storeId, cookieHeader) {
     try {
         const fetched = await fetchPage(url, cookieHeader);
         if (!fetched) {
-            debug.error = 'Both curl-impersonate and Node.js fetch failed';
+            debug.error = 'All fetch methods failed (Playwright + Node.js)';
             return debug;
         }
         debug.fetchMethod = fetched.method;
@@ -328,7 +302,7 @@ async function debugSearch(query, storeId, cookieHeader) {
         debug.htmlLength = fetched.html.length;
         debug.pageTitle = extractPageTitle(fetched.html);
         if (isBotPage(debug.pageTitle)) {
-            debug.error = `Bot challenge (${debug.fetchMethod}) — ${debug.fetchMethod === 'curl-impersonate' ? 'check that your cookie is valid' : 'curl-impersonate not installed'}`;
+            debug.error = `Bot challenge via ${debug.fetchMethod} — try refreshing your Walmart cookie in Settings`;
             return debug;
         }
         const data = extractNextData(fetched.html);
