@@ -219,6 +219,14 @@ function parseProduct(p: Record<string, any>): Omit<WalmartProduct, 'source'> {
     safeNum(p?.priceInfo?.price) ??
     null
 
+  // TEMP: log category-related fields to find correct department key
+  console.log('[parseProduct] keys:', Object.keys(p).join(', '))
+  console.log('[parseProduct] category:', JSON.stringify(p?.category))
+  console.log('[parseProduct] categories:', JSON.stringify(p?.categories))
+  console.log('[parseProduct] department:', JSON.stringify(p?.department))
+  console.log('[parseProduct] type:', JSON.stringify(p?.type))
+  console.log('[parseProduct] classType:', JSON.stringify(p?.classType))
+
   const categoryPath: any[] = p?.category?.path ?? p?.categories ?? []
   return {
     productName: safeStr(p?.name) ?? safeStr(p?.title),
