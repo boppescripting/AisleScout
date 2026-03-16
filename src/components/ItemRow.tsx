@@ -133,11 +133,7 @@ export default function ItemRow({
               >
                 <MapPin size={10} />
                 {item.department}
-                {item.aisle && (
-                  <span className={item.aisle.startsWith('~') ? 'text-primary-300 italic' : 'text-primary-400'}>
-                    · {item.aisle}
-                  </span>
-                )}
+                {item.aisle && <span className="text-primary-400">· {item.aisle}</span>}
               </button>
             ) : !isLookingUp && (
               <button

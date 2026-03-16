@@ -284,14 +284,7 @@ function parseProduct(p: Record<string, any>): Omit<WalmartProduct, 'source'> {
     safeStr(p?.department) ??
     null
 
-  // productLocation comes from Walmart's planogram database which may reference a
-  // different store than the one configured — treat as approximate.
-  const loc = p?.productLocation?.[0]
-  const aisleRaw =
-    safeStr(loc?.displayValue) ??
-    safeStr(p?.productLocationDisplayValue) ??
-    null
-  const aisle = aisleRaw ? `~${aisleRaw}` : null
+  const aisle = null
 
   return {
     productName: safeStr(p?.name) ?? safeStr(p?.title),
@@ -411,9 +404,7 @@ export async function searchWalmart(
   console.log(`[Walmart] Searching: ${url}`)
 
   try {
-    // We don't know the itemId yet, so fetch search page first.
-    // Once we have the itemId, the store product page is fetched in the same session.
-    const fetched = await fetchPage(url, cookieHeader, 25)
+    const fetched = await fetchPage(url, cookieHeader, 20)
     if (!fetched) return null
 
     const title = extractPageTitle(fetched.html)
@@ -435,36 +426,7 @@ export async function searchWalmart(
     if (!items.length) return null
 
     const result = parseProduct(items[0] as Record<string, any>)
-
-    // Fetch store-specific product page in a second session to get correct aisle for store
-    if (storeId && result.walmartItemId) {
-      const productUrl = `https://www.walmart.com/store/${storeId}/product/${result.walmartItemId}`
-      const productPage = await fetchPage(productUrl, cookieHeader, 15)
-      if (productPage && productPage.status === 200 && !isBotPage(extractPageTitle(productPage.html))) {
-        const productData = extractNextData(productPage.html)
-        const root = productData as any
-        console.log('[AisleDEBUG] __NEXT_DATA__ top keys:', Object.keys(root ?? {}).join(', '))
-        console.log('[AisleDEBUG] props keys:', Object.keys(root?.props ?? {}).join(', '))
-        console.log('[AisleDEBUG] pageProps keys:', Object.keys(root?.props?.pageProps ?? {}).join(', '))
-        const initialData = root?.props?.pageProps?.initialData
-        const p = initialData?.data?.product
-        console.log('[AisleDEBUG] initialData keys:', Object.keys(initialData ?? {}).join(', '))
-        console.log('[AisleDEBUG] product keys:', Object.keys(p ?? {}).join(', '))
-        // Search for aisle anywhere in the data
-        const dataStr = JSON.stringify(root ?? {})
-        const aisleMatch = dataStr.match(/"aisle[^"]*":"([^"]+)"/i) ?? dataStr.match(/"displayValue":"([^"]+)"/i)
-        console.log('[AisleDEBUG] aisle regex match:', aisleMatch?.[0] ?? 'none')
-        const aisleVal =
-          safeStr(p?.location?.displayValue) ??
-          safeStr(p?.store?.location?.displayValue) ??
-          safeStr(p?.location?.aisle) ??
-          null
-        if (aisleVal) result.aisle = `Aisle ${aisleVal}`
-        console.log(`[Walmart] Store ${storeId} aisle="${result.aisle}"`)
-      }
-    }
-
-    console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}" aisle="${result.aisle}"`)
+    console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}"`)
 
     return { ...result, source: 'walmart' }
   } catch (err: any) {

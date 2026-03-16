@@ -80,7 +80,8 @@ export default function ListDetailPage() {
           name: result.productName ?? undefined,
           price: result.price ?? undefined,
           department: result.department ?? undefined,
-          aisle: result.aisle ?? undefined,
+          // Never overwrite a manually saved aisle — only set if item has none
+          aisle: item.aisle ? undefined : (result.aisle ?? undefined),
           walmart_item_id: result.walmartItemId ?? undefined,
         })
         updateItemInStore(item.id, updated)
