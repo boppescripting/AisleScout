@@ -21,14 +21,14 @@ export function loginHandler(req: Request, res: Response) {
   const { password } = req.body
   if (!password) return res.status(401).json({ error: 'Password required' })
 
-  const provided = Buffer.from(deriveToken(password))
-  const expected = Buffer.from(deriveToken(appPassword))
+  const provided = Buffer.from(deriveToken(password), 'utf8')
+  const expected = Buffer.from(deriveToken(appPassword), 'utf8')
 
   // Constant-time compare to avoid timing attacks
   if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
     return res.status(401).json({ error: 'Invalid password' })
   }
-  res.json({ token: expected.toString('hex') })
+  res.json({ token: deriveToken(appPassword) })
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -39,8 +39,8 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const token = header?.startsWith('Bearer ') ? header.slice(7) : null
   if (!token) return res.status(401).json({ error: 'Unauthorized' })
 
-  const providedBuf = Buffer.from(token)
-  const expectedBuf = Buffer.from(expected)
+  const providedBuf = Buffer.from(token, 'utf8')
+  const expectedBuf = Buffer.from(expected, 'utf8')
   if (providedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(providedBuf, expectedBuf)) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
