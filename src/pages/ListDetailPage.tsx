@@ -76,6 +76,9 @@ export default function ListDetailPage() {
     try {
       const result = await searchWalmart(item.name)
       if (result.price != null || result.department != null) {
+        const walmartUrl = result.walmartItemId
+          ? `https://www.walmart.com/ip/${result.walmartItemId}`
+          : undefined
         const updated = await updateItem(item.id, {
           name: result.productName ?? undefined,
           price: result.price ?? undefined,
@@ -83,6 +86,8 @@ export default function ListDetailPage() {
           // Never overwrite a manually saved aisle — only set if item has none
           aisle: item.aisle ? undefined : (result.aisle ?? undefined),
           walmart_item_id: result.walmartItemId ?? undefined,
+          // Only set url if item doesn't already have one
+          url: item.url ? undefined : walmartUrl,
         })
         updateItemInStore(item.id, updated)
       }
@@ -105,6 +110,7 @@ export default function ListDetailPage() {
       department: null,
       aisle: null,
       walmart_item_id: null,
+      url: null,
       created_at: new Date().toISOString(),
     }
     addItemToStore(placeholder)
@@ -141,9 +147,9 @@ export default function ListDetailPage() {
     await deleteItem(item.id)
   }
 
-  const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null) => {
-    updateItemInStore(item.id, { price, department, aisle })
-    await updateItem(item.id, { price: price ?? undefined, department: department ?? undefined, aisle: aisle ?? undefined })
+  const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null, url: string | null) => {
+    updateItemInStore(item.id, { price, department, aisle, url })
+    await updateItem(item.id, { price: price ?? undefined, department: department ?? undefined, aisle: aisle ?? undefined, url: url ?? undefined })
     // Persist aisle permanently by walmart item id so it survives list deletion
     if (item.walmart_item_id) {
       await saveWalmartAisle(item.walmart_item_id, aisle).catch(() => {})
@@ -217,7 +223,7 @@ export default function ListDetailPage() {
                       onQtyChange={qty => handleQtyChange(item, qty)}
                       onDelete={() => handleDelete(item)}
                       onLookup={() => runWalmartLookup(item)}
-                      onManualEdit={(price, dept, aisle) => handleManualEdit(item, price, dept, aisle)}
+                      onManualEdit={(price, dept, aisle, url) => handleManualEdit(item, price, dept, aisle, url)}
                     />
                   ))}
                 </div>
@@ -245,7 +251,7 @@ export default function ListDetailPage() {
                         onQtyChange={qty => handleQtyChange(item, qty)}
                         onDelete={() => handleDelete(item)}
                         onLookup={() => runWalmartLookup(item)}
-                        onManualEdit={(price, dept, aisle) => handleManualEdit(item, price, dept, aisle)}
+                        onManualEdit={(price, dept, aisle, url) => handleManualEdit(item, price, dept, aisle, url)}
                       />
                     ))}
                   </div>

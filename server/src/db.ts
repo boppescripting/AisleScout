@@ -68,5 +68,11 @@ export async function initDb() {
     await db.execute("ALTER TABLE walmart_cache ADD COLUMN source TEXT")
   }
 
+  const itemCols = await db.execute("PRAGMA table_info(items)")
+  const itemColNames = itemCols.rows.map((r: any) => r.name)
+  if (!itemColNames.includes('url')) {
+    await db.execute("ALTER TABLE items ADD COLUMN url TEXT")
+  }
+
   console.log('Database initialized')
 }

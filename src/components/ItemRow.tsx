@@ -1,4 +1,4 @@
-import { Loader2, MapPin, Pencil, RefreshCw, Trash2, X } from 'lucide-react'
+import { ExternalLink, Loader2, MapPin, Pencil, RefreshCw, Trash2, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 import type { Item } from '../types'
 
@@ -9,7 +9,7 @@ interface ItemRowProps {
   onQtyChange: (qty: number) => void
   onDelete: () => void
   onLookup: () => void
-  onManualEdit: (price: number | null, department: string | null, aisle: string | null) => void
+  onManualEdit: (price: number | null, department: string | null, aisle: string | null, url: string | null) => void
 }
 
 export default function ItemRow({
@@ -26,12 +26,14 @@ export default function ItemRow({
   const [priceInput, setPriceInput] = useState('')
   const [deptInput, setDeptInput] = useState('')
   const [aisleInput, setAisleInput] = useState('')
+  const [urlInput, setUrlInput] = useState('')
   const priceRef = useRef<HTMLInputElement>(null)
 
   const openEdit = () => {
     setPriceInput(item.price != null ? item.price.toFixed(2) : '')
     setDeptInput(item.department ?? '')
     setAisleInput(item.aisle ?? '')
+    setUrlInput(item.url ?? '')
     setEditing(true)
     setTimeout(() => priceRef.current?.focus(), 50)
   }
@@ -40,10 +42,12 @@ export default function ItemRow({
     const price = priceInput.trim() === '' ? null : parseFloat(priceInput)
     const department = deptInput.trim() || null
     const aisle = aisleInput.trim() || null
+    const url = urlInput.trim() || null
     onManualEdit(
       price != null && isFinite(price) && price >= 0 ? price : null,
       department,
-      aisle
+      aisle,
+      url
     )
     setEditing(false)
   }
@@ -79,12 +83,26 @@ export default function ItemRow({
         {/* Content */}
         <div className="flex-1 min-w-0 py-2.5 pr-1">
           <div className="flex items-baseline justify-between gap-2">
-            <span
-              className={`text-base font-medium leading-tight ${
-                item.checked ? 'line-through text-gray-400' : 'text-gray-900'
-              }`}
-            >
-              {item.name}
+            <span className="flex items-center gap-1.5 min-w-0">
+              <span
+                className={`text-base font-medium leading-tight ${
+                  item.checked ? 'line-through text-gray-400' : 'text-gray-900'
+                }`}
+              >
+                {item.name}
+              </span>
+              {item.url && (
+                <a
+                  href={item.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={e => e.stopPropagation()}
+                  className="flex-shrink-0 text-gray-300 hover:text-primary transition-colors"
+                  title="View item"
+                >
+                  <ExternalLink size={13} />
+                </a>
+              )}
             </span>
 
             {/* Price */}
@@ -228,6 +246,17 @@ export default function ItemRow({
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+          </div>
+          <div>
+            <label className="text-xs text-gray-400 mb-1 block">Item URL</label>
+            <input
+              type="url"
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveEdit()}
+              placeholder="https://..."
+              className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+            />
           </div>
           <div className="flex gap-2">
             <button
