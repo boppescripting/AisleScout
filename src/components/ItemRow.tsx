@@ -143,7 +143,7 @@ export default function ItemRow({
 
           {/* Meta row */}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {item.department ? (
+            {(item.department || item.aisle) ? (
               <button
                 onClick={openEdit}
                 className="inline-flex items-center gap-1 text-xs bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full font-medium active:bg-primary-100"
@@ -151,7 +151,11 @@ export default function ItemRow({
               >
                 <MapPin size={10} />
                 {item.department}
-                {item.aisle && <span className="text-primary-400">· {item.aisle}</span>}
+                {item.aisle && (
+                  <span className="text-primary-400">
+                    {item.department ? '· ' : ''}{item.aisle}
+                  </span>
+                )}
               </button>
             ) : !isLookingUp && (
               <button
