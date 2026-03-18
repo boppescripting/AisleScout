@@ -1,18 +1,19 @@
-import { Plus } from 'lucide-react'
+import { Plus, Sparkles } from 'lucide-react'
 import { useRef, useState } from 'react'
 
 interface AddItemBarProps {
-  onAdd: (name: string) => void
+  onAdd: (name: string, walmartLookup: boolean) => void
 }
 
 export default function AddItemBar({ onAdd }: AddItemBarProps) {
   const [value, setValue] = useState('')
+  const [walmartEnabled, setWalmartEnabled] = useState(true)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const submit = () => {
     const trimmed = value.trim()
     if (!trimmed) return
-    onAdd(trimmed)
+    onAdd(trimmed, walmartEnabled)
     setValue('')
     inputRef.current?.focus()
   }
@@ -31,6 +32,17 @@ export default function AddItemBar({ onAdd }: AddItemBarProps) {
           autoComplete="off"
           autoCorrect="off"
         />
+        <button
+          onClick={() => setWalmartEnabled(v => !v)}
+          title={walmartEnabled ? 'Walmart lookup on' : 'Walmart lookup off'}
+          className={`rounded-xl px-3 py-3 transition-colors border ${
+            walmartEnabled
+              ? 'bg-primary-50 border-primary text-primary'
+              : 'bg-gray-100 border-gray-200 text-gray-400'
+          }`}
+        >
+          <Sparkles size={18} />
+        </button>
         <button
           onClick={submit}
           disabled={!value.trim()}

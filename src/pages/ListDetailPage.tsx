@@ -98,7 +98,7 @@ export default function ListDetailPage() {
     }
   }
 
-  const handleAddItem = async (name: string) => {
+  const handleAddItem = async (name: string, walmartLookup: boolean) => {
     // Optimistic: add a placeholder immediately
     const placeholder: Item = {
       id: -Date.now(), // temp id
@@ -121,7 +121,7 @@ export default function ListDetailPage() {
       removeItemFromStore(placeholder.id)
       addItemToStore(real)
       // Auto-lookup in background
-      runWalmartLookup(real)
+      if (walmartLookup) runWalmartLookup(real)
     } catch {
       removeItemFromStore(placeholder.id)
     }
