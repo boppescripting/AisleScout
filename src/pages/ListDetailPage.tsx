@@ -149,7 +149,7 @@ export default function ListDetailPage() {
 
   const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null, url: string | null) => {
     updateItemInStore(item.id, { price, department, aisle, url })
-    await updateItem(item.id, { price: price ?? undefined, department: department ?? undefined, aisle: aisle ?? undefined, url: url ?? undefined })
+    await updateItem(item.id, { price: price ?? undefined, department, aisle, url })
     // Persist aisle permanently by walmart item id so it survives list deletion
     if (item.walmart_item_id) {
       await saveWalmartAisle(item.walmart_item_id, aisle).catch(() => {})
