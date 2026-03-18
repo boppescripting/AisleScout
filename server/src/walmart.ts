@@ -213,9 +213,13 @@ function findItems(data: Record<string, unknown>): unknown[] {
   const pp = (data as any)?.props?.pageProps
   const sr = pp?.initialData?.searchResult
 
+  // Collect from ALL stacks so sponsored/featured items don't crowd out organic results
+  const allItems: unknown[] = []
   for (const stack of (sr?.itemStacks ?? []) as any[]) {
-    if (Array.isArray(stack?.items) && stack.items.length > 0) return stack.items
+    if (Array.isArray(stack?.items)) allItems.push(...stack.items)
   }
+  if (allItems.length > 0) return allItems
+
   if (Array.isArray(sr?.items) && sr.items.length > 0) return sr.items
 
   for (const section of (pp?.initialData?.contentLayout?.sections ?? []) as any[]) {
@@ -305,7 +309,7 @@ const MULTI_PACK_RE = /\b(\d+[\s-]?pack|pack\s+of\s+\d+|bundle|combo|multipack|t
 // Look through the top results and prefer a single-unit item over a multi-pack
 function pickBestItem(items: unknown[]): Record<string, any> | null {
   if (!items.length) return null
-  const candidates = items.slice(0, 5) as Record<string, any>[]
+  const candidates = items.slice(0, 10) as Record<string, any>[]
   const singlePack = candidates.find(item => {
     const name = String(item?.name ?? item?.title ?? '')
     return !MULTI_PACK_RE.test(name)
