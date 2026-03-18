@@ -299,6 +299,20 @@ function isBotPage(title: string): boolean {
   return /robot|captcha|are you human|access denied/i.test(title)
 }
 
+// Matches multi-pack / bundle product names
+const MULTI_PACK_RE = /\b(\d+[\s-]?pack|pack\s+of\s+\d+|bundle|combo|multipack|twin\s*pack|value\s*pack|set\s+of\s+\d+|case\s+of\s+\d+|\d+\s*ct\b|\d+\s*count\b)\b/i
+
+// Look through the top results and prefer a single-unit item over a multi-pack
+function pickBestItem(items: unknown[]): Record<string, any> | null {
+  if (!items.length) return null
+  const candidates = items.slice(0, 5) as Record<string, any>[]
+  const singlePack = candidates.find(item => {
+    const name = String(item?.name ?? item?.title ?? '')
+    return !MULTI_PACK_RE.test(name)
+  })
+  return singlePack ?? candidates[0]
+}
+
 // ─── Keyword department guesser ───────────────────────────────────────────────
 
 const KEYWORD_DEPT: Array<[RegExp, string]> = [
@@ -425,7 +439,8 @@ export async function searchWalmart(
     console.log(`[Walmart] Found ${items.length} result(s)`)
     if (!items.length) return null
 
-    const result = parseProduct(items[0] as Record<string, any>)
+    const best = pickBestItem(items)!
+    const result = parseProduct(best)
     console.log(`[Walmart] "${result.productName}" $${result.price} dept="${result.department}"`)
 
     return { ...result, source: 'walmart' }
@@ -475,8 +490,9 @@ export async function debugSearch(
     const items = findItems(data)
     debug.itemCount = items.length
     if (items.length > 0) {
-      debug.result = { ...parseProduct(items[0] as Record<string, any>), source: 'walmart' };
-      (debug as any).rawItem = items[0]
+      const best = pickBestItem(items)!
+      debug.result = { ...parseProduct(best), source: 'walmart' };
+      (debug as any).rawItem = best
     }
   } catch (err: any) {
     debug.error = err?.message ?? String(err)
