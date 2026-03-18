@@ -19,6 +19,7 @@ export interface Item {
   aisle: string | null
   walmart_item_id: string | null
   url: string | null
+  store: string | null
   created_at: string
 }
 

@@ -86,8 +86,9 @@ export default function ListDetailPage() {
           // Never overwrite a manually saved aisle — only set if item has none
           aisle: item.aisle ? undefined : (result.aisle ?? undefined),
           walmart_item_id: result.walmartItemId ?? undefined,
-          // Only set url if item doesn't already have one
+          // Only set url/store if item doesn't already have one
           url: item.url ? undefined : walmartUrl,
+          store: item.store ? undefined : 'Walmart',
         })
         updateItemInStore(item.id, updated)
       }
@@ -111,6 +112,7 @@ export default function ListDetailPage() {
       aisle: null,
       walmart_item_id: null,
       url: null,
+      store: null,
       created_at: new Date().toISOString(),
     }
     addItemToStore(placeholder)
@@ -147,9 +149,9 @@ export default function ListDetailPage() {
     await deleteItem(item.id)
   }
 
-  const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null, url: string | null) => {
-    updateItemInStore(item.id, { price, department, aisle, url })
-    await updateItem(item.id, { price: price ?? undefined, department, aisle, url })
+  const handleManualEdit = async (item: Item, price: number | null, department: string | null, aisle: string | null, url: string | null, store: string | null) => {
+    updateItemInStore(item.id, { price, department, aisle, url, store })
+    await updateItem(item.id, { price: price ?? undefined, department, aisle, url, store })
     // Persist aisle permanently by walmart item id so it survives list deletion
     if (item.walmart_item_id) {
       await saveWalmartAisle(item.walmart_item_id, aisle).catch(() => {})
@@ -223,7 +225,7 @@ export default function ListDetailPage() {
                       onQtyChange={qty => handleQtyChange(item, qty)}
                       onDelete={() => handleDelete(item)}
                       onLookup={() => runWalmartLookup(item)}
-                      onManualEdit={(price, dept, aisle, url) => handleManualEdit(item, price, dept, aisle, url)}
+                      onManualEdit={(price, dept, aisle, url, store) => handleManualEdit(item, price, dept, aisle, url, store)}
                     />
                   ))}
                 </div>
@@ -251,7 +253,7 @@ export default function ListDetailPage() {
                         onQtyChange={qty => handleQtyChange(item, qty)}
                         onDelete={() => handleDelete(item)}
                         onLookup={() => runWalmartLookup(item)}
-                        onManualEdit={(price, dept, aisle, url) => handleManualEdit(item, price, dept, aisle, url)}
+                        onManualEdit={(price, dept, aisle, url, store) => handleManualEdit(item, price, dept, aisle, url, store)}
                       />
                     ))}
                   </div>

@@ -9,7 +9,7 @@ interface ItemRowProps {
   onQtyChange: (qty: number) => void
   onDelete: () => void
   onLookup: () => void
-  onManualEdit: (price: number | null, department: string | null, aisle: string | null, url: string | null) => void
+  onManualEdit: (price: number | null, department: string | null, aisle: string | null, url: string | null, store: string | null) => void
 }
 
 export default function ItemRow({
@@ -27,6 +27,7 @@ export default function ItemRow({
   const [deptInput, setDeptInput] = useState('')
   const [aisleInput, setAisleInput] = useState('')
   const [urlInput, setUrlInput] = useState('')
+  const [storeInput, setStoreInput] = useState('')
   const priceRef = useRef<HTMLInputElement>(null)
 
   const openEdit = () => {
@@ -34,6 +35,7 @@ export default function ItemRow({
     setDeptInput(item.department ?? '')
     setAisleInput(item.aisle ?? '')
     setUrlInput(item.url ?? '')
+    setStoreInput(item.store ?? '')
     setEditing(true)
     setTimeout(() => priceRef.current?.focus(), 50)
   }
@@ -43,11 +45,13 @@ export default function ItemRow({
     const department = deptInput.trim() || null
     const aisle = aisleInput.trim() || null
     const url = urlInput.trim() || null
+    const store = storeInput.trim() || null
     onManualEdit(
       price != null && isFinite(price) && price >= 0 ? price : null,
       department,
       aisle,
-      url
+      url,
+      store
     )
     setEditing(false)
   }
@@ -143,7 +147,7 @@ export default function ItemRow({
 
           {/* Meta row */}
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            {(item.department || item.aisle) ? (
+            {(item.department || item.aisle || item.store) ? (
               <button
                 onClick={openEdit}
                 className="inline-flex items-center gap-1 text-xs bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full font-medium active:bg-primary-100"
@@ -151,9 +155,10 @@ export default function ItemRow({
               >
                 <MapPin size={10} />
                 {item.department}
-                {item.aisle && (
+                {(item.store || item.aisle) && (
                   <span className="text-primary-400">
-                    {item.department ? '· ' : ''}{item.aisle}
+                    {item.department ? '· ' : ''}
+                    {[item.store, item.aisle].filter(Boolean).join(' ')}
                   </span>
                 )}
               </button>
@@ -236,6 +241,17 @@ export default function ItemRow({
                 onChange={e => setDeptInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && saveEdit()}
                 placeholder="e.g. Coffee"
+                className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-gray-400 mb-1 block">Store</label>
+              <input
+                type="text"
+                value={storeInput}
+                onChange={e => setStoreInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && saveEdit()}
+                placeholder="e.g. Walmart"
                 className="w-full bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
               />
             </div>

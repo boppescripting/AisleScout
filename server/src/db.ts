@@ -73,6 +73,9 @@ export async function initDb() {
   if (!itemColNames.includes('url')) {
     await db.execute("ALTER TABLE items ADD COLUMN url TEXT")
   }
+  if (!itemColNames.includes('store')) {
+    await db.execute("ALTER TABLE items ADD COLUMN store TEXT")
+  }
 
   console.log('Database initialized')
 }

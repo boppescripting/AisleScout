@@ -52,7 +52,7 @@ const itemsRouter = Router()
 itemsRouter.put('/:id', async (req, res) => {
   const id = Number(req.params.id)
   const fields = req.body as Record<string, unknown>
-  const allowed = ['name', 'quantity', 'checked', 'price', 'department', 'aisle', 'walmart_item_id', 'url']
+  const allowed = ['name', 'quantity', 'checked', 'price', 'department', 'aisle', 'walmart_item_id', 'url', 'store']
 
   const updates: string[] = []
   const args: InValue[] = []
